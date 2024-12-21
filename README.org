@@ -1,0 +1,270 @@
+#+title: Base Emacs Configuration
+#+auto_tangle: t
+#+startup: content
+#+PROPERTY:  header-args :tangle "init.el"
+
+Getting started with Emacs can be overwhelming, and the default
+behavior does not take advantage of all of the work the community has
+done to make it more discoverable, and otherwise ease the learning
+curve.
+
+While there are many emacs configurations shared on the internet, they
+often are either highly customized, opinionated, or complex.  In
+contrast, this is just the start of a configuration.
+
+The [[init.el][init.el]] in this directory can be placed in your =~/.emacs.d/=
+directory, or you can add something like following to your existing
+=~/.emacs.d/init.el=:
+
+#+begin_src shell :tangle no
+(load-file "path/to/this/init.el")
+#+end_src
+
+* Package Management
+
+Emacs package managment has come along way over the years, and the
+current =use-package= system, which is built in to emacs 29 and later,
+gives us a handy way to install, load and customize packages.
+
+Packages are downloaded from a package archive, and placed in the
+=~/.emacs.d/elpa= directory.  When starting an emacs environment from
+scratch, or if you have package load or compilation errors, it can
+useful to clean out the elpa directory.
+
+We will add the =melpa-stable= archive to our =package-archives=
+variable, to get access to several useful packages.
+
+The =use-package= form let's us load a module, =ensure= it is
+downloaded if not already available, and run some =config= code.
+
+#+begin_src elisp
+(require 'package)
+(add-to-list
+ 'package-archives
+ '("melpa-stable" . "https://stable.melpa.org/packages/") t)
+
+(package-initialize)
+(require 'use-package)
+#+end_src
+
+* Emacs Customization
+
+The emacs =customize= systems provides a UI for customizing values.  It needs to store customizations in a file to preserve them across sessions.  It will append them to your init.el by default, but it's better to put them into their own file.
+
+#+begin_src elisp
+(setq custom-file "~/.emacs.d/emacs-custom.el")
+#+end_src
+
+* User Experience
+
+Emacs is an interactive lisp system, wrapped around a text editor.  It also happens to be largely self-documenting
+
+#+begin_src emacs-lisp
+(use-package eldoc
+  :config
+  (setq eldoc-echo-area-prefer-doc-buffer t
+	eldoc-echo-area-use-multiline-p 5))
+#+end_src
+
+** Learning Key Bindings
+
+The =which-key= module will pop-up a minibuffer when you start a compound keystroke, and show you the completions.
+
+#+begin_src emacs-lisp
+;; This is builtin to Emacs 30, prior to that, it uses
+;; https://github.com/justbur/emacs-which-key
+(use-package which-key
+  :ensure t
+  :config
+  (which-key-mode))
+#+end_src
+
+#+RESULTS:
+: t
+
+** Completion
+
+Having helpful completion when you open a file, or jump to a buffer,
+or invoke an interactive function makes discovery and navigation much
+easier.
+
+*** Vertico
+We use the =vertico= completion package to minibuffer bases completion for opening files, or calling functions.
+
+Module Repository:  https://github.com/minad/vertico
+
+#+begin_src emacs-lisp
+(use-package vertico
+  :ensure t
+  :config
+  (vertico-mode 1)
+  (setq read-file-name-completion-ignore-case t
+	read-buffer-completion-ignore-base t
+	completion-ignore-case t))
+
+#+end_src
+
+*** Orderless
+The =orderless= package lets us type in elements of a path or function name, without having to know the order they appear in the target, allowing us "fuzzy" completion.
+
+Module Repository: https://github.com/oantolin/orderless
+
+#+begin_src emacs-lisp
+(use-package orderless
+  :ensure t
+  :config
+  (setq completion-styles '(basic orderless))
+  (setq completion-category-overrides '((ifle (styles basic partial-completion)))))
+#+end_src
+
+Use a combination of packages to get a more discoverable, completion subsystem and minibuffer ui.
+
+
+*** Marginalia
+The =marginalia= package will annotate our possible completions with helpful information, like function documentation, file sizes, and file types.
+
+Module Repository: https://github.com/minad/marginalia
+
+#+begin_src elisp
+(use-package marginalia
+  :ensure t
+  :config
+  (marginalia-mode 1))
+
+#+end_src
+
+
+** Input History
+
+#+begin_src emacs-lisp
+;; builtin
+(use-package savehist
+  :config
+  (setq history-length 100)
+  (savehist-mode 1))
+#+end_src
+
+** Consult
+
+The (Consult)[https://github.com/minad/consult] module provides
+improved search and navigation function making use of our improved
+completion and annotations subsystems.  We bind these replacements
+functions in the global key map, overriding the defaults.
+
+#+begin_src emacs-lisp
+(use-package consult
+  :ensure t
+  ;; Replace bindings. Lazily loaded due by `use-package'.
+  :bind
+  (;; C-c bindings (mode-specific-map)
+   ("C-c h" . consult-history)
+   ("C-c m" . consult-mode-command)
+   ("C-c k" . consult-kmacro)
+   ("C-c g" . consult-grep)
+   ;; C-x bindings (ctl-x-map)
+   ("C-x M-:" . consult-complex-command)     ;; orig. repeat-complex-command
+   
+   ;; buffer ops
+   ("C-x b" . consult-buffer)                ;; orig. switch-to-buffer
+   ("C-x 4 b" . consult-buffer-other-window) ;; orig. switch-to-buffer-other-window
+   ("C-x 5 b" . consult-buffer-other-frame)  ;; orig. switch-to-buffer-other-frame
+   ("C-x r b" . consult-bookmark)            ;; orig. bookmark-jump
+   ("C-x p b" . consult-project-buffer)      ;; orig. project-switch-to-buffer
+   ("C-x p g" . consult-ripgrep)      ;; orig. 
+   ;; Custom M-# bindings for fast register access
+   ("M-#" . consult-register-load)
+   ("M-'" . consult-register-store)          ;; orig. abbrev-prefix-mark (unrelated)
+   ("C-M-#" . consult-register)
+   ;; Other custom bindings
+   ("M-y" . consult-yank-pop)                ;; orig. yank-pop
+   
+   ;; M-g bindings (goto-map)
+   ("M-g e" . consult-compile-error)
+   ("M-g f" . consult-flymake)               ;; Alternative: consult-flycheck
+   ("M-g g" . consult-goto-line)             ;; orig. goto-line
+   ("M-g M-g" . consult-goto-line)           ;; orig. goto-line
+   ("M-g o" . consult-outline)               ;; Alternative: consult-org-heading
+   ("M-g m" . consult-mark)
+   ("M-g k" . consult-global-mark)
+   ("M-g i" . consult-imenu)
+   ("M-g I" . consult-imenu-multi)
+   ;; M-s bindings (search-map)
+   ("M-s d" . consult-find)
+   ("M-s D" . consult-locate)
+   ("M-s g" . consult-grep)
+   ("M-s G" . consult-git-grep)
+   ("M-s r" . consult-ripgrep)
+   ("M-s l" . consult-line)
+   ("M-s L" . consult-line-multi)
+   ("M-s k" . consult-keep-lines)
+   ("M-s u" . consult-focus-lines)
+   ;; Isearch integration
+   ("M-s e" . consult-isearch-history)
+   :map isearch-mode-map
+   ("M-e" . consult-isearch-history)         ;; orig. isearch-edit-string
+   ("M-s e" . consult-isearch-history)       ;; orig. isearch-edit-string
+   ("M-s l" . consult-line)                  ;; needed by consult-line to detect isearch
+   ("M-s L" . consult-line-multi)            ;; needed by consult-line to detect isearch
+   ;; Minibuffer history
+   :map minibuffer-local-map
+   ("M-s" . consult-history)                 ;; orig. next-matching-history-element
+   ("M-r" . consult-history))                ;; orig. previous-matching-history-element
+  
+  ;; Enable automatic preview at point in the *Completions* buffer. This is
+  ;; relevant when you use the default completion UI.
+  :hook (completion-list-mode . consult-preview-at-point-mode)
+  
+  ;; The :init configuration is always executed (Not lazy)
+  :config
+  ;; Optionally configure the register formatting. This improves the register
+  ;; preview for `consult-register', `consult-register-load',
+  ;; `consult-register-store' and the Emacs built-ins.
+  (setq register-preview-delay 0.5
+	register-preview-function #'consult-register-format)
+  
+  ;; Optionally tweak the register preview window.
+  ;; This adds thin lines, sorting and hides the mode line of the window.
+  (advice-add #'register-preview :override #'consult-register-window)
+  
+  ;; Use Consult to select xref locations with preview
+  (setq xref-show-xrefs-function #'consult-xref
+	xref-show-definitions-function #'consult-xref)
+
+  ;; Optionally configure preview. The default value
+  ;; is 'any, such that any key triggers the preview.
+  ;; (setq consult-preview-key 'any)
+  ;; (setq consult-preview-key (kbd "M-."))
+  ;; (setq consult-preview-key (list (kbd "<S-down>") (kbd "<S-up>")))
+  ;; For some commands and buffer sources it is useful to configure the
+  ;; :preview-key on a per-command basis using the `consult-customize' macro.
+  (consult-customize
+   consult-theme :preview-key '(:debounce 0.2 any)
+   consult-ripgrep consult-git-grep consult-grep
+   consult-bookmark consult-recent-file consult-xref
+   consult--source-bookmark consult--source-file-register
+   consult--source-recent-file consult--source-project-recent-file
+   ;; :preview-key (kbd "M-.")
+   :preview-key '(:debounce 0.4 any))
+
+  ;; Optionally configure the narrowing key.
+  ;; Both < and C-+ work reasonably well.
+  (setq consult-narrow-key "<") ;; (kbd "C-+")
+
+  ;; Optionally make narrowing help available in the minibuffer.
+  ;; You may want to use `embark-prefix-help-command' or which-key instead.
+  ;; (define-key consult-narrow-map (vconcat consult-narrow-key "?") #'consult-narrow-help)
+
+  ;; By default `consult-project-function' uses `project-root' from project.el.
+  ;; Optionally configure a different project root function.
+  ;; There are multiple reasonable alternatives to chose from.
+    ;;;; 1. project.el (the default)
+  ;; (setq consult-project-function #'consult--default-project--function)
+    ;;;; 2. projectile.el (projectile-project-root)
+  ;; (autoload 'projectile-project-root "projectile")
+  ;; (setq consult-project-function (lambda (_) (projectile-project-root)))
+    ;;;; 3. vc.el (vc-root-dir)
+  ;; (setq consult-project-function (lambda (_) (vc-root-dir)))
+    ;;;; 4. locate-dominating-file
+  ;; (setq consult-project-function (lambda (_) (locate-dominating-file "." ".git")))
+  )
+#+end_src
